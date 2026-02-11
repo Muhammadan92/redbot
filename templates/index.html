@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reddit Bot Control Panel</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Reddit Bot Control Panel</h1>
+            <div class="status-bar">
+                <span class="status-dot" id="status-dot"></span>
+                <span id="status-text">Stopped</span>
+                <span class="divider">|</span>
+                <span>Comments: <strong id="comment-count">0</strong></span>
+            </div>
+        </header>
+
+        <section class="settings">
+            <div class="form-group">
+                <label for="subreddit">Subreddit to scan</label>
+                <input type="text" id="subreddit" placeholder="all (default = front page)" value="all">
+            </div>
+
+            <div class="form-group">
+                <label for="topic">Topic to scan for</label>
+                <input type="text" id="topic" placeholder="e.g. artificial intelligence, electric vehicles...">
+            </div>
+
+            <div class="form-group">
+                <label for="flavor">Comment flavor / tone</label>
+                <input type="text" id="flavor" placeholder="e.g. friendly and helpful, witty, professional...">
+            </div>
+
+            <div class="form-group">
+                <label for="must-include">Comment MUST have</label>
+                <input type="text" id="must-include" placeholder="Required text in every comment (optional)">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="max-comments">Max comments</label>
+                    <div class="inline-group">
+                        <input type="number" id="max-comments" value="10" min="1" max="1000">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="unlimited"> Unlimited
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="delay">Delay (seconds)</label>
+                    <input type="number" id="delay" value="30" min="5" max="600">
+                </div>
+
+                <div class="form-group">
+                    <label for="offset">Random offset (+/- sec)</label>
+                    <input type="number" id="offset" value="10" min="0" max="300">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="checkbox-label dry-run-label">
+                    <input type="checkbox" id="dry-run" checked>
+                    Dry Run (preview only, don't actually post)
+                </label>
+            </div>
+
+            <div class="button-row">
+                <button id="start-btn" class="btn btn-start">START</button>
+                <button id="stop-btn" class="btn btn-stop" disabled>STOP</button>
+            </div>
+        </section>
+
+        <section class="log-section">
+            <h2>Activity Log</h2>
+            <div id="activity-log"></div>
+        </section>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
