@@ -4,3 +4,5 @@ __pycache__/
 .venv/
 venv/
 .claude/
+reddit_session.json
+debug_*.png

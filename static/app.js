@@ -60,6 +60,7 @@ startBtn.addEventListener("click", async () => {
         subreddit: document.getElementById("subreddit").value.trim(),
         comment_flavor: flavor,
         must_include: document.getElementById("must-include").value.trim(),
+        must_include_context: document.getElementById("must-include-context").value.trim(),
         max_comments: unlimitedCheckbox.checked
             ? 0
             : parseInt(maxCommentsInput.value) || 10,

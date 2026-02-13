@@ -69,6 +69,7 @@ class BotEngine:
         self.subreddit = settings.get("subreddit", "all").strip() or "all"
         self.comment_flavor = settings["comment_flavor"]
         self.must_include = settings.get("must_include", "")
+        self.must_include_context = settings.get("must_include_context", "")
         self.max_comments = int(settings.get("max_comments", 0))
         self.delay_seconds = int(settings.get("delay_seconds", 30))
         self.random_offset = int(settings.get("random_offset", 10))
@@ -137,6 +138,7 @@ class BotEngine:
         self.log(f"Fetched {len(posts)} posts, classifying...")
 
         matches = 0
+        consecutive_ai_errors = 0
         for post in posts:
             if self._stop_event.is_set():
                 return
@@ -152,8 +154,15 @@ class BotEngine:
             # Classify
             try:
                 is_match = classify_post(post["title"], post["selftext"], self.topic)
+                consecutive_ai_errors = 0
             except Exception as e:
+                consecutive_ai_errors += 1
                 self.log(f"Classification error: {e}", level="error")
+                if consecutive_ai_errors >= 3:
+                    self.log("All AI providers unavailable. Waiting 60s before retry...", level="error")
+                    if not self._wait(60):
+                        return
+                    consecutive_ai_errors = 0
                 continue
 
             if not is_match:
@@ -169,6 +178,7 @@ class BotEngine:
                     post["selftext"],
                     self.comment_flavor,
                     self.must_include,
+                    self.must_include_context,
                 )
             except Exception as e:
                 self.log(f"Comment generation error: {e}", level="error")
@@ -178,7 +188,7 @@ class BotEngine:
             if self.must_include and self.must_include.lower() not in comment_text.lower():
                 comment_text += f" {self.must_include}"
 
-            self.log(f"Generated: {comment_text[:100]}...")
+            self.log(f"Generated: {comment_text}")
 
             # Post or dry run
             if self.dry_run:

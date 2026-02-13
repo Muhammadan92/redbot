@@ -1,3 +1,4 @@
+import os
 import httpx
 from playwright.sync_api import sync_playwright
 from config import Config
@@ -5,6 +6,8 @@ from config import Config
 BASE_HEADERS = {
     "User-Agent": Config.REDDIT_USER_AGENT,
 }
+
+SESSION_FILE = os.path.join(os.path.dirname(__file__), "reddit_session.json")
 
 
 def _find_and_fill(page, selectors, value, field_name):
@@ -35,71 +38,46 @@ def _find_and_click(page, selectors, label):
 
 
 def create_session():
-    """Launch a browser, log into Reddit, return (playwright, browser, page, username)."""
+    """Load saved Reddit session, return (playwright, browser, page, username)."""
+    if not os.path.exists(SESSION_FILE):
+        raise RuntimeError(
+            "No saved Reddit session found. Run 'python save_session.py' first to log in."
+        )
+
     pw = sync_playwright().start()
     browser = pw.chromium.launch(headless=True)
     context = browser.new_context(
         user_agent=Config.REDDIT_USER_AGENT,
+        storage_state=SESSION_FILE,
     )
     page = context.new_page()
 
-    # Navigate to new Reddit login page
-    page.goto("https://www.reddit.com/login", wait_until="domcontentloaded")
-    page.wait_for_timeout(2000)  # let JS render
-
-    # Fill username - try multiple selectors
-    _find_and_fill(page, [
-        "#login-username",
-        'input[name="username"]',
-        'input[autocomplete="username"]',
-        'input[type="text"]',
-    ], Config.REDDIT_USERNAME, "username")
-
-    # Fill password - try multiple selectors
-    # (might be on same page or after clicking "Continue")
-    password_selectors = [
-        "#login-password",
-        'input[name="password"]',
-        'input[autocomplete="current-password"]',
-        'input[type="password"]',
-    ]
-
-    try:
-        _find_and_fill(page, password_selectors, Config.REDDIT_PASSWORD, "password")
-    except RuntimeError:
-        # Two-step flow: click Continue/Next first, then fill password
-        _find_and_click(page, [
-            'button:has-text("Continue")',
-            'button:has-text("Next")',
-            'button[type="submit"]',
-        ], "Continue")
-        page.wait_for_timeout(2000)
-        _find_and_fill(page, password_selectors, Config.REDDIT_PASSWORD, "password")
-
-    # Click Log In / Submit
-    _find_and_click(page, [
-        'button:has-text("Log In")',
-        'button:has-text("Log in")',
-        'button:has-text("Sign In")',
-        'button[type="submit"]',
-    ], "Login")
-
-    # Wait for login to complete
-    page.wait_for_timeout(5000)
-
-    # Verify login by navigating to old.reddit.com (cookies carry over)
+    # Verify login on old.reddit.com
     page.goto("https://old.reddit.com", wait_until="domcontentloaded")
     page.wait_for_timeout(2000)
 
-    # Check for logged-in user element on old reddit
-    user_link = page.locator(".user a").first
-    try:
-        if user_link.is_visible(timeout=5000):
-            username = user_link.text_content() or Config.REDDIT_USERNAME
-        else:
-            raise RuntimeError("Login verification failed - not logged in on old.reddit.com")
-    except Exception:
-        raise RuntimeError("Login verification failed - could not confirm logged-in state")
+    username = None
+
+    # Check for logout form (only present when logged in)
+    logout = page.locator('form[action="https://old.reddit.com/logout"]')
+    if logout.count() > 0:
+        # Extract username from user span
+        try:
+            links = page.locator("span.user a")
+            for i in range(links.count()):
+                text = (links.nth(i).text_content() or "").strip().lower()
+                if text and text not in ("log in", "login", "sign up", "register", "sign in"):
+                    username = text
+                    break
+        except Exception:
+            pass
+        if not username:
+            username = Config.REDDIT_USERNAME
+
+    if not username:
+        raise RuntimeError(
+            "Saved session expired. Run 'python save_session.py' again to log in."
+        )
 
     return pw, browser, page, username
 
@@ -145,24 +123,28 @@ def fetch_hot_posts(subreddit_name="all", limit=50):
 
 
 def post_comment(page, submission_id, comment_text):
-    """Post a comment on a Reddit submission using Playwright browser."""
-    # Navigate to the post on old reddit
+    """Post a comment on a Reddit submission using Playwright DOM interaction."""
     page.goto(
         f"https://old.reddit.com/comments/{submission_id}",
-        wait_until="domcontentloaded",
+        wait_until="networkidle",
+        timeout=30000,
     )
-
-    # Find the top-level comment textarea
-    comment_form = page.locator(".commentarea .usertext-edit textarea").first
-    comment_form.wait_for(state="visible", timeout=10000)
-    comment_form.click()
-    comment_form.fill(comment_text)
-
-    # Click the save/submit button
-    save_btn = page.locator(".commentarea .usertext-edit .save-button button").first
-    save_btn.click()
-
-    # Wait for the comment to appear (indicates success)
     page.wait_for_timeout(3000)
 
+    # old.reddit.com uses standard <textarea> elements
+    _find_and_fill(page, [
+        'textarea[name="text"]',
+        ".commentarea textarea",
+        ".usertext-edit textarea",
+        "form.usertext textarea",
+    ], comment_text, "comment textarea")
+
+    _find_and_click(page, [
+        "button.save",
+        'button:has-text("save")',
+        ".usertext-buttons button",
+        '.bottom-area button[type="submit"]',
+    ], "save comment")
+
+    page.wait_for_timeout(3000)
     return True
