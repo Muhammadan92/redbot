@@ -1,38 +1,82 @@
-import praw
+import httpx
 from config import Config
 
+BASE_HEADERS = {
+    "User-Agent": Config.REDDIT_USER_AGENT,
+}
 
-def get_reddit_instance():
-    """Create an authenticated PRAW Reddit instance."""
-    return praw.Reddit(
-        client_id=Config.REDDIT_CLIENT_ID,
-        client_secret=Config.REDDIT_CLIENT_SECRET,
-        username=Config.REDDIT_USERNAME,
-        password=Config.REDDIT_PASSWORD,
-        user_agent=Config.REDDIT_USER_AGENT,
+
+def create_session():
+    """Log into Reddit via old.reddit.com and return (session, modhash)."""
+    session = httpx.Client(
+        headers=BASE_HEADERS,
+        follow_redirects=True,
+        timeout=30.0,
     )
 
+    resp = session.post(
+        "https://old.reddit.com/api/login",
+        data={
+            "user": Config.REDDIT_USERNAME,
+            "passwd": Config.REDDIT_PASSWORD,
+            "api_type": "json",
+        },
+    )
+    resp.raise_for_status()
 
-def fetch_hot_posts(reddit, subreddit_name="all", limit=50):
-    """Fetch hot posts from a subreddit. Returns list of post dicts."""
-    subreddit = reddit.subreddit(subreddit_name)
+    result = resp.json()
+    errors = result.get("json", {}).get("errors", [])
+    if errors:
+        raise RuntimeError(f"Reddit login failed: {errors}")
+
+    modhash = result["json"]["data"]["modhash"]
+    return session, modhash
+
+
+def fetch_hot_posts(subreddit_name="all", limit=50):
+    """Fetch hot posts from a subreddit using public JSON endpoint. No auth needed."""
+    resp = httpx.get(
+        f"https://www.reddit.com/r/{subreddit_name}/hot.json",
+        params={"limit": limit, "raw_json": 1},
+        headers=BASE_HEADERS,
+        timeout=30.0,
+    )
+    resp.raise_for_status()
+
+    data = resp.json()
     posts = []
-    for submission in subreddit.hot(limit=limit):
-        if submission.stickied:
+    for child in data["data"]["children"]:
+        post = child["data"]
+        if post.get("stickied"):
             continue
         posts.append({
-            "id": submission.id,
-            "title": submission.title,
-            "selftext": submission.selftext[:500],
-            "url": submission.url,
-            "subreddit": str(submission.subreddit),
-            "num_comments": submission.num_comments,
-            "permalink": submission.permalink,
+            "id": post["id"],
+            "title": post["title"],
+            "selftext": (post.get("selftext") or "")[:500],
+            "url": post.get("url", ""),
+            "subreddit": post.get("subreddit", ""),
+            "num_comments": post.get("num_comments", 0),
+            "permalink": post.get("permalink", ""),
         })
     return posts
 
 
-def post_comment(reddit, submission_id, comment_text):
-    """Post a comment on a Reddit submission."""
-    submission = reddit.submission(id=submission_id)
-    return submission.reply(comment_text)
+def post_comment(session, modhash, submission_id, comment_text):
+    """Post a comment on a Reddit submission using session auth."""
+    resp = session.post(
+        "https://old.reddit.com/api/comment",
+        data={
+            "thing_id": f"t3_{submission_id}",
+            "text": comment_text,
+            "uh": modhash,
+            "api_type": "json",
+        },
+    )
+    resp.raise_for_status()
+
+    result = resp.json()
+    errors = result.get("json", {}).get("errors", [])
+    if errors:
+        raise RuntimeError(f"Comment failed: {errors}")
+
+    return result

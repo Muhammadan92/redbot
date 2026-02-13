@@ -4,7 +4,7 @@ import random
 import json
 import queue
 from datetime import datetime
-from reddit_client import get_reddit_instance, fetch_hot_posts, post_comment
+from reddit_client import create_session, fetch_hot_posts, post_comment
 from ai_client import classify_post, generate_comment
 
 
@@ -103,16 +103,16 @@ class BotEngine:
 
     def _run_loop(self):
         try:
-            reddit = get_reddit_instance()
-            self.log("Connected to Reddit as u/" + str(reddit.user.me()))
+            session, modhash = create_session()
+            self.log("Logged into Reddit successfully")
         except Exception as e:
-            self.log(f"Reddit connection failed: {e}", level="error")
+            self.log(f"Reddit login failed: {e}", level="error")
             self.is_running = False
             return
 
         while not self._stop_event.is_set():
             try:
-                self._scan_and_comment(reddit)
+                self._scan_and_comment(session, modhash)
             except Exception as e:
                 self.log(f"Error in scan cycle: {e}", level="error")
 
@@ -127,9 +127,9 @@ class BotEngine:
         self.log(f"Bot stopped. Total comments: {self.comments_posted}")
         self.is_running = False
 
-    def _scan_and_comment(self, reddit):
+    def _scan_and_comment(self, session, modhash):
         self.log(f"Scanning r/{self.subreddit} hot posts...")
-        posts = fetch_hot_posts(reddit, subreddit_name=self.subreddit, limit=50)
+        posts = fetch_hot_posts(subreddit_name=self.subreddit, limit=50)
         self.log(f"Fetched {len(posts)} posts, classifying...")
 
         matches = 0
@@ -186,7 +186,7 @@ class BotEngine:
                 )
             else:
                 try:
-                    post_comment(reddit, post["id"], comment_text)
+                    post_comment(session, modhash, post["id"], comment_text)
                     self.comments_posted += 1
                     self.commented_posts.add(post["id"])
                     self.log(
