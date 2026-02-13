@@ -134,7 +134,7 @@ class BotEngine:
 
     def _scan_and_comment(self, page):
         self.log(f"Scanning r/{self.subreddit} hot posts...")
-        posts = fetch_hot_posts(subreddit_name=self.subreddit, limit=50)
+        posts = fetch_hot_posts(page, subreddit_name=self.subreddit, limit=50)
         self.log(f"Fetched {len(posts)} posts, classifying...")
 
         matches = 0

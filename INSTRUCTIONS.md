@@ -16,6 +16,7 @@ This bot scans Reddit for posts matching a topic you specify, uses AI to generat
 ## Prerequisites
 
 - **Python 3.10+**
+- **Google Chrome browser** (required for Reddit login session)
 - **A Reddit account** (username and password)
 - **A Groq API key** (free, no credit card)
 - **A Google Gemini API key** (free, used as fallback)
@@ -29,8 +30,10 @@ This bot scans Reddit for posts matching a topic you specify, uses AI to generat
 
 ```bash
 pip install -r requirements.txt
-playwright install chromium
+playwright install
 ```
+
+> **Note:** The bot uses your system-installed Google Chrome (not Playwright's bundled Chromium). Make sure Chrome is installed on your machine.
 
 ### 2. Configure Environment Variables
 
@@ -45,7 +48,7 @@ Edit `.env` and fill in these values:
 ```
 REDDIT_USERNAME=your_reddit_username
 REDDIT_PASSWORD=your_reddit_password
-REDDIT_USER_AGENT=redditbot:v1.0 (by /u/your_reddit_username)
+REDDIT_USER_AGENT=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36
 
 GROQ_API_KEY=gsk_your_groq_key_here
 GEMINI_API_KEY=AIzaSy_your_gemini_key_here
@@ -93,16 +96,16 @@ Reddit blocks automated logins, so you need to log in manually once:
 python save_session.py
 ```
 
-This opens a browser window. Follow the steps:
+This opens a **real Chrome window** (not Playwright's built-in browser) to avoid Reddit's bot detection. Follow the steps:
 
-1. Log into Reddit in the browser
+1. Log into Reddit in the Chrome window
 2. Complete any CAPTCHA or 2FA if prompted
 3. Wait until you see your Reddit homepage
 4. Go back to the terminal and press **Enter**
 
-Your session is saved to `reddit_session.json`. The bot will reuse this session automatically.
+Your session is saved to `reddit_session.json`. A `.chrome-profile/` directory is also created to store persistent browser data, which helps avoid future bot detection.
 
-**When to re-run this:** If you see a "session expired" error, just run `python save_session.py` again.
+**When to re-run this:** If you see a "session expired" error, just run `python save_session.py` again. The persistent Chrome profile is reused automatically.
 
 ---
 
@@ -156,7 +159,9 @@ The activity log shows every step in real time.
 | **"Failed to post comment"** | Your session may have expired, or the post may be locked/archived. Re-run `save_session.py` |
 | **No matching posts found** | Try broadening your topic, or scan a more specific subreddit |
 | **Bot stops after a few comments** | Check your "Max comments" setting. Uncheck "Unlimited" if you want no limit |
-| **`playwright install chromium` fails** | Make sure you have a stable internet connection. On Linux you may need `sudo playwright install-deps` first |
+| **403 Blocked on scan** | Your user agent looks like a bot. Update `REDDIT_USER_AGENT` in `.env` to a Chrome browser user agent string |
+| **401 Unauthorized on save_session.py** | Reddit is blocking the automated browser. Make sure Google Chrome is installed on your system |
+| **`playwright install` fails** | Make sure you have a stable internet connection. On Linux you may need `sudo playwright install-deps` first |
 
 ---
 
@@ -173,6 +178,7 @@ redditBot/
   requirements.txt    - Python dependencies
   .env.example        - Environment variable template
   .gitignore          - Git ignore rules
+  .chrome-profile/    - Persistent Chrome browser data (auto-created)
   templates/
     index.html        - Control panel HTML
   static/

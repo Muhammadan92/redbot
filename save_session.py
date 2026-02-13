@@ -1,12 +1,19 @@
 """One-time setup: log into Reddit manually and save the session for the bot."""
+import os
 from playwright.sync_api import sync_playwright
 from config import Config
 
 
 def save_reddit_session():
     pw = sync_playwright().start()
-    browser = pw.chromium.launch(headless=False)
-    context = browser.new_context(user_agent=Config.REDDIT_USER_AGENT)
+    context = pw.chromium.launch_persistent_context(
+        user_data_dir=os.path.join(os.path.dirname(__file__), ".chrome-profile"),
+        headless=False,
+        channel="chrome",
+        args=["--disable-blink-features=AutomationControlled"],
+        user_agent=Config.REDDIT_USER_AGENT,
+    )
+    context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     page = context.new_page()
 
     page.goto("https://www.reddit.com/login")
@@ -50,7 +57,7 @@ def save_reddit_session():
         print("WARNING: Could not verify login on old.reddit.com.")
         print("The session was saved anyway - try running the bot to see if it works.")
 
-    browser.close()
+    context.close()
     pw.stop()
     print("\nDone! You can now start the bot.")
 

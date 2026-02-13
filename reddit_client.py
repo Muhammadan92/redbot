@@ -1,11 +1,6 @@
 import os
-import httpx
 from playwright.sync_api import sync_playwright
 from config import Config
-
-BASE_HEADERS = {
-    "User-Agent": Config.REDDIT_USER_AGENT,
-}
 
 SESSION_FILE = os.path.join(os.path.dirname(__file__), "reddit_session.json")
 
@@ -45,11 +40,15 @@ def create_session():
         )
 
     pw = sync_playwright().start()
-    browser = pw.chromium.launch(headless=True)
+    browser = pw.chromium.launch(
+        headless=True,
+        args=["--disable-blink-features=AutomationControlled"],
+    )
     context = browser.new_context(
         user_agent=Config.REDDIT_USER_AGENT,
         storage_state=SESSION_FILE,
     )
+    context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     page = context.new_page()
 
     # Verify login on old.reddit.com
@@ -94,15 +93,14 @@ def close_session(pw, browser):
         pass
 
 
-def fetch_hot_posts(subreddit_name="all", limit=50):
-    """Fetch hot posts from a subreddit using public JSON endpoint. No auth needed."""
-    resp = httpx.get(
+def fetch_hot_posts(page, subreddit_name="all", limit=50):
+    """Fetch hot posts from a subreddit using the browser session."""
+    resp = page.context.request.get(
         f"https://www.reddit.com/r/{subreddit_name}/hot.json",
-        params={"limit": limit, "raw_json": 1},
-        headers=BASE_HEADERS,
-        timeout=30.0,
+        params={"limit": str(limit), "raw_json": "1"},
     )
-    resp.raise_for_status()
+    if not resp.ok:
+        raise RuntimeError(f"Failed to fetch posts: {resp.status} {resp.status_text}")
 
     data = resp.json()
     posts = []
