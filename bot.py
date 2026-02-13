@@ -4,7 +4,7 @@ import random
 import json
 import queue
 from datetime import datetime
-from reddit_client import create_session, fetch_hot_posts, post_comment
+from reddit_client import create_session, close_session, fetch_hot_posts, post_comment
 from ai_client import classify_post, generate_comment
 
 
@@ -102,32 +102,36 @@ class BotEngine:
         return True
 
     def _run_loop(self):
+        pw = None
+        browser = None
         try:
-            session, modhash = create_session()
-            self.log("Logged into Reddit successfully")
+            pw, browser, page, username = create_session()
+            self.log(f"Logged into Reddit as u/{username}")
         except Exception as e:
             self.log(f"Reddit login failed: {e}", level="error")
             self.is_running = False
             return
 
-        while not self._stop_event.is_set():
-            try:
-                self._scan_and_comment(session, modhash)
-            except Exception as e:
-                self.log(f"Error in scan cycle: {e}", level="error")
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    self._scan_and_comment(page)
+                except Exception as e:
+                    self.log(f"Error in scan cycle: {e}", level="error")
 
-            # Check if we hit max comments and stopped
-            if self._stop_event.is_set():
-                break
+                if self._stop_event.is_set():
+                    break
 
-            self.log("Next scan in 5 minutes...")
-            if not self._wait(300):
-                break
+                self.log("Next scan in 5 minutes...")
+                if not self._wait(300):
+                    break
+        finally:
+            close_session(pw, browser)
 
         self.log(f"Bot stopped. Total comments: {self.comments_posted}")
         self.is_running = False
 
-    def _scan_and_comment(self, session, modhash):
+    def _scan_and_comment(self, page):
         self.log(f"Scanning r/{self.subreddit} hot posts...")
         posts = fetch_hot_posts(subreddit_name=self.subreddit, limit=50)
         self.log(f"Fetched {len(posts)} posts, classifying...")
@@ -186,7 +190,7 @@ class BotEngine:
                 )
             else:
                 try:
-                    post_comment(session, modhash, post["id"], comment_text)
+                    post_comment(page, post["id"], comment_text)
                     self.comments_posted += 1
                     self.commented_posts.add(post["id"])
                     self.log(
