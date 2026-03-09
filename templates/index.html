@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reddit Bot Control Panel</title>
+    <title>Bot Control Panel</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Reddit Bot Control Panel</h1>
+            <h1>Bot Control Panel</h1>
             <div class="status-bar">
                 <span class="status-dot" id="status-dot"></span>
                 <span id="status-text">Stopped</span>
@@ -19,9 +19,40 @@
         </header>
 
         <section class="settings">
-            <div class="form-group">
-                <label for="subreddit">Subreddit to scan</label>
-                <input type="text" id="subreddit" placeholder="all (default = front page)" value="all">
+            <div class="platform-toggle">
+                <button class="platform-btn active" data-platform="reddit">Reddit</button>
+                <button class="platform-btn" data-platform="youtube">YouTube</button>
+            </div>
+
+            <div id="reddit-settings">
+                <div class="form-group">
+                    <label for="subreddit">Subreddit to scan</label>
+                    <input type="text" id="subreddit" placeholder="all (default = front page)" value="all">
+                </div>
+            </div>
+
+            <div id="youtube-settings" style="display:none">
+                <div class="form-group">
+                    <label>Video source</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="video-source" value="search" checked> Search by topic
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="video-source" value="trending"> Trending
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="video-source" value="urls"> Paste URLs
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group" id="video-urls-group" style="display:none">
+                    <label for="video-urls">Video URLs (one per line)</label>
+                    <textarea id="video-urls" rows="4" placeholder="https://www.youtube.com/watch?v=..."></textarea>
+                </div>
+                <div class="form-group">
+                    <p class="hint">Minimum 120s delay between YouTube comments (auto-enforced)</p>
+                </div>
             </div>
 
             <div class="form-group">

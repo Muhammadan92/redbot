@@ -5,4 +5,7 @@ __pycache__/
 venv/
 .claude/
 reddit_session.json
+youtube_session.json
+.chrome-profile/
+.chrome-profile-youtube/
 debug_*.png

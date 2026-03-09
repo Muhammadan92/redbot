@@ -32,7 +32,7 @@ def save_reddit_session():
     input("Press ENTER when you are logged in... ")
 
     # Save session
-    context.storage_state(path="reddit_session.json")
+    context.storage_state(path=os.path.join(os.path.dirname(__file__), "reddit_session.json"))
     print("\nSession saved to reddit_session.json")
 
     # Verify it works on old.reddit.com

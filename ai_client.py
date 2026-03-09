@@ -81,24 +81,25 @@ def call_ai(system_prompt, user_prompt):
     raise RuntimeError(f"All AI providers failed: {'; '.join(errors)}")
 
 
-def classify_post(post_title, post_text, target_topic):
-    """Ask AI if a post matches the target topic. Returns True/False."""
+def classify_post(post_title, post_text, target_topic, platform="reddit"):
+    """Ask AI if a post/video matches the target topic. Returns True/False."""
+    content_type = "Reddit post" if platform == "reddit" else "YouTube video"
     system_prompt = (
-        "You are a content classifier. You will receive a Reddit post title and text. "
+        f"You are a content classifier. You will receive a {content_type} title and text. "
         "Determine if it is relevant to the given topic. "
         "Respond with ONLY 'yes' or 'no'. Nothing else."
     )
     user_prompt = (
         f"Topic to match: {target_topic}\n\n"
-        f"Post title: {post_title}\n"
-        f"Post text: {post_text[:300]}"
+        f"Title: {post_title}\n"
+        f"Text: {post_text[:300]}"
     )
     result = call_ai(system_prompt, user_prompt)
     return result.lower().strip().startswith("yes")
 
 
-def generate_comment(post_title, post_text, comment_flavor, must_include, must_include_context=""):
-    """Generate a Reddit comment for the given post."""
+def generate_comment(post_title, post_text, comment_flavor, must_include, must_include_context="", platform="reddit"):
+    """Generate a comment for the given post/video."""
     must_include_instruction = ""
     if must_include:
         must_include_instruction = (
@@ -109,15 +110,24 @@ def generate_comment(post_title, post_text, comment_flavor, must_include, must_i
                 f"Mention it as: {must_include_context}. "
             )
 
+    if platform == "youtube":
+        persona = "You are a YouTube commenter. Write a natural, human-sounding comment."
+        platform_instruction = " Do not use Reddit-specific language like 'OP', 'subreddit', or 'upvote'."
+        content_label = "YouTube comment for this video"
+    else:
+        persona = "You are a Reddit commenter. Write a natural, human-sounding comment."
+        platform_instruction = ""
+        content_label = "Reddit comment for this post"
+
     system_prompt = (
-        f"You are a Reddit commenter. Write a natural, human-sounding comment. "
+        f"{persona} "
         f"Style/tone: {comment_flavor}. "
         f"{must_include_instruction}"
         f"Keep the comment between 1-3 sentences. Do not use quotation marks around the whole response. "
-        f"Do not start with 'As an AI' or similar disclaimers."
+        f"Do not start with 'As an AI' or similar disclaimers.{platform_instruction}"
     )
     user_prompt = (
-        f"Write a Reddit comment for this post:\n"
+        f"Write a {content_label}:\n"
         f"Title: {post_title}\n"
         f"Content: {post_text[:300]}"
     )

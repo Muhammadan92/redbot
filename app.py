@@ -22,6 +22,16 @@ def api_start():
     if not data.get("comment_flavor"):
         return jsonify({"error": "Comment flavor is required"}), 400
 
+    platform = data.get("platform", "reddit")
+    if platform == "youtube":
+        source = data.get("video_source", "search")
+        if source == "urls":
+            urls = data.get("video_urls", "")
+            if isinstance(urls, str):
+                urls = [u.strip() for u in urls.split("\n") if u.strip()]
+            if not urls:
+                return jsonify({"error": "At least one video URL is required"}), 400
+
     success = bot.start(data)
     if success:
         return jsonify({"status": "started"})
@@ -43,6 +53,7 @@ def api_status():
         "comments_posted": bot.comments_posted,
         "topic": bot.topic,
         "dry_run": bot.dry_run,
+        "platform": bot.platform,
     })
 
 

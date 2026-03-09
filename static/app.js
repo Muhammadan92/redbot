@@ -6,6 +6,41 @@ const commentCount = document.getElementById("comment-count");
 const activityLog = document.getElementById("activity-log");
 const unlimitedCheckbox = document.getElementById("unlimited");
 const maxCommentsInput = document.getElementById("max-comments");
+const delayInput = document.getElementById("delay");
+
+let currentPlatform = "reddit";
+
+// Platform toggle
+document.querySelectorAll(".platform-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+        document.querySelectorAll(".platform-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentPlatform = btn.dataset.platform;
+
+        document.getElementById("reddit-settings").style.display =
+            currentPlatform === "reddit" ? "block" : "none";
+        document.getElementById("youtube-settings").style.display =
+            currentPlatform === "youtube" ? "block" : "none";
+
+        // Enforce minimum delay for YouTube
+        if (currentPlatform === "youtube") {
+            delayInput.min = 120;
+            if (parseInt(delayInput.value) < 120) {
+                delayInput.value = 120;
+            }
+        } else {
+            delayInput.min = 5;
+        }
+    });
+});
+
+// Video source radio toggle
+document.querySelectorAll('input[name="video-source"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+        document.getElementById("video-urls-group").style.display =
+            radio.value === "urls" && radio.checked ? "block" : "none";
+    });
+});
 
 // Toggle max comments input when unlimited is checked
 unlimitedCheckbox.addEventListener("change", () => {
@@ -56,18 +91,28 @@ startBtn.addEventListener("click", async () => {
     }
 
     const settings = {
+        platform: currentPlatform,
         topic: topic,
-        subreddit: document.getElementById("subreddit").value.trim(),
         comment_flavor: flavor,
         must_include: document.getElementById("must-include").value.trim(),
         must_include_context: document.getElementById("must-include-context").value.trim(),
         max_comments: unlimitedCheckbox.checked
             ? 0
             : parseInt(maxCommentsInput.value) || 10,
-        delay_seconds: parseInt(document.getElementById("delay").value) || 30,
+        delay_seconds: parseInt(delayInput.value) || 30,
         random_offset: parseInt(document.getElementById("offset").value) || 10,
         dry_run: document.getElementById("dry-run").checked,
     };
+
+    if (currentPlatform === "reddit") {
+        settings.subreddit = document.getElementById("subreddit").value.trim();
+    } else {
+        const videoSource = document.querySelector('input[name="video-source"]:checked').value;
+        settings.video_source = videoSource;
+        if (videoSource === "urls") {
+            settings.video_urls = document.getElementById("video-urls").value.trim();
+        }
+    }
 
     try {
         const res = await fetch("/api/start", {
@@ -108,11 +153,16 @@ function setRunningState(running) {
     statusText.textContent = running ? "Running" : "Stopped";
 
     // Disable inputs while running
-    const inputs = document.querySelectorAll(".settings input");
+    const inputs = document.querySelectorAll(".settings input, .settings textarea");
     inputs.forEach((input) => {
         if (input.id !== "unlimited" || !running) {
             input.disabled = running;
         }
+    });
+
+    // Disable platform toggle while running
+    document.querySelectorAll(".platform-btn").forEach((btn) => {
+        btn.disabled = running;
     });
 }
 

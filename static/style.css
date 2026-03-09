@@ -66,6 +66,89 @@ h1 {
     color: #444;
 }
 
+.platform-toggle {
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #2a2a4a;
+}
+
+.platform-btn {
+    flex: 1;
+    padding: 10px 20px;
+    border: none;
+    background: #0f3460;
+    color: #888;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.platform-btn:hover:not(:disabled) {
+    background: #1a4a7a;
+    color: #ccc;
+}
+
+.platform-btn.active {
+    background: #ff6b35;
+    color: #fff;
+}
+
+.platform-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.radio-group {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    color: #ccc;
+    cursor: pointer;
+}
+
+.radio-label input[type="radio"] {
+    accent-color: #ff6b35;
+}
+
+textarea {
+    width: 100%;
+    padding: 10px 14px;
+    background: #0f3460;
+    border: 1px solid #2a2a4a;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 0.95rem;
+    font-family: inherit;
+    resize: vertical;
+    transition: border-color 0.2s;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: #ff6b35;
+}
+
+textarea::placeholder {
+    color: #556;
+}
+
+.hint {
+    font-size: 0.82rem;
+    color: #888;
+    font-style: italic;
+}
+
 .settings {
     background: #16213e;
     border-radius: 10px;
