@@ -344,3 +344,398 @@ def post_comment(page, video_id, comment_text):
     page.wait_for_timeout(3000)
 
     return True
+
+
+# ──────────────────────────────────────────────────────────────────────
+#  MOBILE (Appium + Android Emulator) variants
+# ──────────────────────────────────────────────────────────────────────
+
+MOBILE_SESSION_FILE = os.path.join(os.path.dirname(__file__), "youtube_session_mobile.json")
+
+
+def create_session_mobile():
+    """Start emulator + Appium, open Mobile Chrome, verify YouTube login.
+
+    Returns (driver, channel_name).
+    """
+    from emulator_manager import start_emulator, start_appium
+    from mobile_driver import (
+        create_appium_driver,
+        find_element as mfind,
+        load_cookies,
+        navigate,
+        wait,
+    )
+
+    serial = start_emulator()
+    start_appium()
+    driver = create_appium_driver(device_serial=serial)
+
+    # If Chrome isn't logged in, try restoring cookies from backup
+    navigate(driver, "https://m.youtube.com")
+    wait(3000)
+
+    avatar = mfind(driver, [
+        "button.topbar-menu-button-avatar-button",
+        "img.ytm-profile-thumbnail",
+        "button[aria-label*='Account']",
+        "button[aria-label*='account']",
+    ], timeout=8000)
+
+    if not avatar and os.path.exists(MOBILE_SESSION_FILE):
+        load_cookies(driver, MOBILE_SESSION_FILE, domain_url="https://m.youtube.com")
+        navigate(driver, "https://m.youtube.com")
+        wait(3000)
+        avatar = mfind(driver, [
+            "button.topbar-menu-button-avatar-button",
+            "img.ytm-profile-thumbnail",
+            "button[aria-label*='Account']",
+            "button[aria-label*='account']",
+        ], timeout=8000)
+
+    if not avatar:
+        raise RuntimeError(
+            "YouTube mobile session not logged in. "
+            "Run 'python save_youtube_session_mobile.py' first."
+        )
+
+    channel_name = "YouTube User"
+    try:
+        avatar.click()
+        wait(2000)
+        from mobile_driver import find_element as mfind2
+        name_el = mfind2(driver, [
+            ".account-name",
+            "yt-formatted-string.ytm-account-section-renderer",
+            ".channel-name",
+        ], timeout=5000)
+        if name_el:
+            channel_name = name_el.text.strip() or channel_name
+        # Close the menu by navigating back
+        driver.back()
+        wait(1000)
+    except Exception:
+        pass
+
+    return driver, channel_name
+
+
+def close_session_mobile(driver):
+    """Clean up Appium driver and optionally stop emulator."""
+    try:
+        driver.quit()
+    except Exception:
+        pass
+
+
+def fetch_videos_mobile(driver, source="search", topic="", video_urls=None, limit=20):
+    """Fetch videos on mobile YouTube based on source mode."""
+    if source == "search":
+        return _fetch_by_search_mobile(driver, topic, limit)
+    elif source == "trending":
+        return _fetch_trending_mobile(driver, limit)
+    elif source == "urls":
+        return _fetch_by_urls_mobile(driver, video_urls or [])
+    else:
+        raise ValueError(f"Unknown video source: {source}")
+
+
+def _parse_renderers_mobile(driver, limit, include_description=False):
+    """Parse video elements from the current mobile YouTube page."""
+    from mobile_driver import find_elements, wait
+
+    videos = []
+
+    # Mobile YouTube uses different renderers depending on the page
+    renderer_selectors = [
+        "ytm-compact-video-renderer",
+        "ytm-video-with-context-renderer",
+        "ytm-rich-item-renderer",
+        ".large-media-item",
+        ".compact-media-item",
+    ]
+
+    renderers = []
+    for sel in renderer_selectors:
+        renderers = find_elements(driver, sel)
+        if renderers:
+            break
+
+    count = min(len(renderers), limit)
+
+    for i in range(count):
+        try:
+            renderer = renderers[i]
+
+            # Extract title
+            title = ""
+            title_els = renderer.find_elements(
+                "css selector",
+                ".media-item-headline span, "
+                "h3 .yt-core-attributed-string, "
+                ".compact-media-item-headline span, "
+                "h3 span"
+            )
+            for tel in title_els:
+                t = (tel.text or "").strip()
+                if t:
+                    title = t
+                    break
+
+            # Extract video link / ID
+            video_id = None
+            link_els = renderer.find_elements(
+                "css selector",
+                "a[href*='watch'], "
+                "a.media-item-thumbnail-container, "
+                "a.compact-media-item-image"
+            )
+            for lel in link_els:
+                href = lel.get_attribute("href") or ""
+                vid = _extract_video_id(href)
+                if vid:
+                    video_id = vid
+                    break
+
+            if not video_id:
+                continue
+
+            # Extract channel name
+            channel = ""
+            ch_els = renderer.find_elements(
+                "css selector",
+                ".media-item-byline span, "
+                ".ytm-badge-and-byline-renderer span, "
+                ".compact-media-item-byline span"
+            )
+            for cel in ch_els:
+                c = (cel.text or "").strip()
+                if c and c not in ("·", "•", ""):
+                    channel = c
+                    break
+
+            # Extract description snippet (search results only)
+            description = ""
+            if include_description:
+                desc_els = renderer.find_elements(
+                    "css selector",
+                    ".media-item-description span, "
+                    ".metadata-snippet-text span"
+                )
+                for del_ in desc_els:
+                    d = (del_.text or "").strip()
+                    if d:
+                        description = d
+                        break
+
+            videos.append({
+                "id": video_id,
+                "title": title,
+                "description": description[:500],
+                "channel": channel,
+                "url": f"https://m.youtube.com/watch?v={video_id}",
+            })
+        except Exception:
+            continue
+
+    return videos
+
+
+def _fetch_by_search_mobile(driver, topic, limit):
+    """Search YouTube mobile for recent videos on a topic."""
+    from mobile_driver import navigate, swipe_up, wait
+
+    query = quote_plus(topic)
+    navigate(driver, f"https://m.youtube.com/results?search_query={query}&sp=CAISBAgBEAE")
+    wait(3000)
+
+    # Swipe to load more results
+    for _ in range(3):
+        swipe_up(driver, distance=random.randint(600, 1000))
+        wait(random.randint(800, 1500))
+
+    return _parse_renderers_mobile(driver, limit, include_description=True)
+
+
+def _fetch_trending_mobile(driver, limit):
+    """Fetch videos from YouTube mobile trending page."""
+    from mobile_driver import navigate, swipe_up, wait
+
+    navigate(driver, "https://m.youtube.com/feed/trending")
+    wait(3000)
+
+    for _ in range(3):
+        swipe_up(driver, distance=random.randint(600, 1000))
+        wait(random.randint(800, 1500))
+
+    return _parse_renderers_mobile(driver, limit, include_description=False)
+
+
+def _fetch_by_urls_mobile(driver, video_urls):
+    """Fetch video info from user-provided URLs on mobile YouTube."""
+    from mobile_driver import find_element as mfind, navigate, wait
+
+    videos = []
+    for url in video_urls:
+        url = url.strip()
+        if not url:
+            continue
+        video_id = _extract_video_id(url)
+        if not video_id:
+            continue
+
+        try:
+            navigate(driver, f"https://m.youtube.com/watch?v={video_id}")
+            wait(3000)
+
+            # Title
+            title = ""
+            title_el = mfind(driver, [
+                "h2.slim-video-information-title .yt-core-attributed-string",
+                "h2.slim-video-information-title span",
+                "#video-title",
+                ".slim-video-information-title",
+            ], timeout=5000)
+            if title_el:
+                title = (title_el.text or "").strip()
+
+            # Description — tap to expand
+            description = ""
+            expand = mfind(driver, [
+                "ytm-expandable-video-description-body-renderer",
+                ".slim-video-metadata-section",
+            ], timeout=3000)
+            if expand:
+                try:
+                    expand.click()
+                    wait(1500)
+                except Exception:
+                    pass
+            desc_el = mfind(driver, [
+                "ytm-expandable-video-description-body-renderer .yt-core-attributed-string",
+                ".description-content .yt-core-attributed-string",
+                "#description-content",
+            ], timeout=3000)
+            if desc_el:
+                description = (desc_el.text or "").strip()
+
+            # Channel name
+            channel = ""
+            ch_el = mfind(driver, [
+                ".slim-owner-channel-name",
+                ".ytm-slim-owner-renderer span",
+                ".channel-name",
+            ], timeout=3000)
+            if ch_el:
+                channel = (ch_el.text or "").strip()
+
+            videos.append({
+                "id": video_id,
+                "title": title,
+                "description": description[:500],
+                "channel": channel,
+                "url": f"https://m.youtube.com/watch?v={video_id}",
+            })
+        except Exception:
+            continue
+
+    return videos
+
+
+def post_comment_mobile(driver, video_id, comment_text):
+    """Post a comment on a YouTube video using Appium on mobile Chrome."""
+    from mobile_driver import (
+        find_element as mfind,
+        human_type,
+        navigate,
+        swipe_up,
+        wait,
+    )
+
+    navigate(driver, f"https://m.youtube.com/watch?v={video_id}")
+
+    # Wait for video page / player to load
+    mfind(driver, ["#player", ".player-container", "video"], timeout=15000)
+
+    # Simulate watching: random wait 8-20s
+    watch_time = random.randint(8, 20)
+    wait(watch_time * 1000)
+
+    # Swipe down gradually to reach comments section
+    for _ in range(4):
+        swipe_up(driver, distance=random.randint(200, 400))
+        wait(random.randint(500, 1500))
+
+    # On mobile YouTube, comments may be behind a "Comments" header/button
+    # that needs to be tapped to expand into a bottom sheet
+    comments_header = mfind(driver, [
+        "ytm-comment-section-renderer",
+        "#comment-section-renderer",
+        "ytm-comments-entry-point-header-renderer",
+        ".comment-section-header",
+    ], timeout=15000)
+
+    if not comments_header:
+        raise RuntimeError("Comments section did not load")
+
+    # Tap to open comments panel (mobile uses a bottom sheet overlay)
+    try:
+        comments_header.click()
+        wait(2000)
+    except Exception:
+        pass
+
+    # Check if comments are disabled
+    from mobile_driver import find_elements
+    disabled_els = find_elements(driver, "ytm-message-renderer, .comments-disabled-message")
+    for el in disabled_els:
+        text = (el.text or "").lower()
+        if "disabled" in text or "turned off" in text:
+            raise RuntimeError("Comments are disabled on this video")
+
+    # Find and tap "Add a comment..." placeholder
+    placeholder = mfind(driver, [
+        "ytm-comment-simplebox-renderer",
+        ".comment-simplebox",
+        "[placeholder*='comment']",
+        "div[role='textbox']",
+    ], timeout=10000)
+
+    if not placeholder:
+        raise RuntimeError("Could not find comment box placeholder")
+
+    placeholder.click()
+    wait(1500)
+
+    # Find the actual editable input
+    editor = mfind(driver, [
+        "div[contenteditable='true']",
+        "#contenteditable-root",
+        "textarea",
+    ], timeout=10000)
+
+    if not editor:
+        raise RuntimeError("Could not find comment editor")
+
+    # Type the comment character-by-character
+    editor.click()
+    wait(500)
+    human_type(editor, comment_text, min_delay_ms=30, max_delay_ms=80)
+    wait(1000)
+
+    # Find and tap the submit/send button
+    submit = mfind(driver, [
+        "button[aria-label*='Send']",
+        "button[aria-label*='submit']",
+        "button[aria-label*='Comment']",
+        ".submit-button",
+        "#submit-button",
+    ], timeout=5000)
+
+    if not submit:
+        raise RuntimeError("Could not find submit button")
+
+    submit.click()
+    wait(3000)
+
+    return True

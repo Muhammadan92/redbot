@@ -163,13 +163,84 @@ The activity log shows every step in real time.
 
 | Problem | Solution |
 |---------|----------|
-| **"No saved YouTube session found"** | Run `python save_youtube_session.py` to log in and save your session |
-| **"YouTube session expired"** | Run `python save_youtube_session.py` again to refresh your session |
+| **"No saved YouTube session found"** | Run `python save_youtube_session.py` (or `save_youtube_session_mobile.py` for mobile mode) to log in and save your session |
+| **"YouTube session expired"** | Re-run the session save script to refresh your session |
 | **"Comments are disabled on this video"** | The video has comments turned off. The bot will skip it and move on |
 | **"Classification error"** | Check your AI API keys in `.env`. Make sure at least one of GROQ_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY is valid |
 | **No matching videos found** | Try broadening your topic, use comma-separated topics, or switch to Trending mode |
-| **Comments not appearing on YouTube** | YouTube may be silently filtering your comments. Try using a VPN, varying your comment tone, or reducing frequency |
+| **Comments not appearing on YouTube** | YouTube may be silently filtering your comments. Try using a VPN, varying your comment tone, or reducing frequency. Consider switching to mobile mode for better stealth. |
 | **Bot seems slow** | YouTube mode intentionally runs slower (120s+ delays, 10-min scan cycles) to mimic human behavior |
+
+---
+
+# Mobile Emulator Mode (Advanced)
+
+For better stealth, the bot can run through a real Android emulator using Appium instead of desktop Playwright. This makes interactions appear as a real phone user with genuine mobile device fingerprints (screen size, touch events, mobile user agent, device sensors).
+
+## Mobile Prerequisites
+
+Everything from the standard setup above, plus:
+
+- **Java** (for Android SDK) — install with `brew install openjdk`
+- **Node.js 18+** (for Appium) — install with `brew install node`
+- **Sufficient RAM** — the emulator uses ~4GB RAM on top of your normal usage
+
+## Mobile Setup
+
+### 1. Run the Emulator Setup Script
+
+```bash
+chmod +x setup_emulator.sh
+./setup_emulator.sh
+```
+
+This installs the Android SDK, creates a Pixel 7 virtual device, and installs Appium + the UiAutomator2 driver. It only needs to be run once.
+
+After setup, add Android tools to your PATH (the script prints the exact commands):
+
+```bash
+export ANDROID_HOME=~/Library/Android/sdk
+export PATH=$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH
+```
+
+### 2. Save Your YouTube Session on Mobile
+
+```bash
+python save_youtube_session_mobile.py
+```
+
+This boots the emulator with a visible window. Log into your Google account on the emulator, then press Enter in the terminal. The session is saved both as a cookie backup and as an emulator snapshot.
+
+### 3. Enable Mobile Mode
+
+Add to your `.env` file:
+
+```
+USE_MOBILE=true
+```
+
+Then start the bot normally with `python app.py`. The bot will automatically:
+1. Boot the Android emulator (headless)
+2. Start the Appium server
+3. Connect Mobile Chrome on the emulator
+4. Browse YouTube as a mobile phone user
+
+## Switching Between Modes
+
+- `USE_MOBILE=true` — Android emulator + Appium (mobile Chrome)
+- `USE_MOBILE=false` (default) — Playwright desktop Chrome (original behavior)
+
+Both modes use the same web UI and settings. The only difference is the underlying browser automation. You can switch freely by changing the `.env` value and restarting the bot.
+
+## Mobile Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| **Emulator doesn't start** | Make sure `ANDROID_HOME` is set and the AVD was created. Run `emulator -list-avds` to verify. |
+| **Appium connection fails** | Check that Appium is installed (`appium --version`) and port 4723 is free |
+| **"YouTube mobile session not logged in"** | Run `python save_youtube_session_mobile.py` again |
+| **Emulator is slow** | Make sure hardware acceleration is enabled. On Apple Silicon Macs, this is automatic. On Intel Macs, ensure HAXM is installed. |
+| **Selectors not finding elements** | Mobile YouTube changes its markup frequently. Check the project's GitHub for updated selectors. |
 
 ---
 
@@ -273,22 +344,26 @@ Open http://127.0.0.1:5000 in your browser. Reddit mode is selected by default.
 
 ```
 redbot/
-  app.py                    - Flask web server (start here)
-  bot.py                    - Bot engine (scanning, posting logic)
-  ai_client.py              - AI integration (Groq + Gemini + OpenAI)
-  reddit_client.py          - Reddit session & comment posting
-  youtube_client.py         - YouTube session, video fetching & comment posting
-  config.py                 - Environment variable loader
-  save_session.py           - One-time Reddit login script
-  save_youtube_session.py   - One-time YouTube/Google login script
-  requirements.txt          - Python dependencies
-  .env.example              - Environment variable template
-  .gitignore                - Git ignore rules
-  .chrome-profile/          - Persistent Chrome browser data for Reddit (auto-created)
-  .chrome-profile-youtube/  - Persistent Chrome browser data for YouTube (auto-created)
+  app.py                         - Flask web server (start here)
+  bot.py                         - Bot engine (scanning, posting logic)
+  ai_client.py                   - AI integration (Groq + Gemini + OpenAI)
+  reddit_client.py               - Reddit session & comment posting
+  youtube_client.py              - YouTube session, video fetching & comment posting (desktop + mobile)
+  config.py                      - Environment variable loader
+  save_session.py                - One-time Reddit login script (desktop)
+  save_youtube_session.py        - One-time YouTube login script (desktop)
+  save_youtube_session_mobile.py - One-time YouTube login script (mobile emulator)
+  emulator_manager.py            - Android emulator & Appium server lifecycle
+  mobile_driver.py               - Appium WebDriver wrapper with helper methods
+  setup_emulator.sh              - One-time Android SDK + AVD setup script
+  requirements.txt               - Python dependencies
+  .env.example                   - Environment variable template
+  .gitignore                     - Git ignore rules
+  .chrome-profile/               - Persistent Chrome browser data for Reddit (auto-created)
+  .chrome-profile-youtube/       - Persistent Chrome browser data for YouTube (auto-created)
   templates/
-    index.html              - Control panel HTML
+    index.html                   - Control panel HTML
   static/
-    style.css               - Dark theme styles
-    app.js                  - Frontend JavaScript
+    style.css                    - Dark theme styles
+    app.js                       - Frontend JavaScript
 ```

@@ -6,6 +6,9 @@ venv/
 .claude/
 reddit_session.json
 youtube_session.json
+youtube_session_mobile.json
 .chrome-profile/
 .chrome-profile-youtube/
 debug_*.png
+debug.html
+debug.png

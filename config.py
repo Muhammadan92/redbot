@@ -15,3 +15,14 @@ class Config:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
+
+    # Mobile emulator mode
+    USE_MOBILE = os.getenv("USE_MOBILE", "false").lower() == "true"
+    ANDROID_AVD_NAME = os.getenv("ANDROID_AVD_NAME", "redbot_pixel7")
+    APPIUM_HOST = os.getenv("APPIUM_HOST", "http://127.0.0.1:4723")
+    EMULATOR_PORT = os.getenv("EMULATOR_PORT", "5554")
+    YOUTUBE_MOBILE_USER_AGENT = os.getenv(
+        "YOUTUBE_MOBILE_USER_AGENT",
+        "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+    )

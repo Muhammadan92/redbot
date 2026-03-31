@@ -4,9 +4,25 @@ import random
 import json
 import queue
 from datetime import datetime
+from config import Config
 from reddit_client import create_session as reddit_create_session, close_session as reddit_close_session, fetch_hot_posts, post_comment as reddit_post_comment
-from youtube_client import create_session as youtube_create_session, close_session as youtube_close_session, fetch_videos, post_comment as youtube_post_comment
 from ai_client import classify_post, generate_comment
+
+# YouTube imports: choose mobile or desktop based on config
+if Config.USE_MOBILE:
+    from youtube_client import (
+        create_session_mobile as youtube_create_session,
+        close_session_mobile as youtube_close_session,
+        fetch_videos_mobile as fetch_videos,
+        post_comment_mobile as youtube_post_comment,
+    )
+else:
+    from youtube_client import (
+        create_session as youtube_create_session,
+        close_session as youtube_close_session,
+        fetch_videos,
+        post_comment as youtube_post_comment,
+    )
 
 VIDEO_SOURCE_LABELS = {"search": "search", "trending": "trending", "urls": "URLs"}
 
@@ -133,10 +149,18 @@ class BotEngine:
     def _run_loop(self):
         pw = None
         browser = None
+        driver = None  # Appium driver (mobile mode)
+        use_mobile = Config.USE_MOBILE and self.platform == "youtube"
+
         try:
             if self.platform == "youtube":
-                pw, browser, page, identity = youtube_create_session()
-                self.log(f"Logged into YouTube as {identity}")
+                if use_mobile:
+                    driver, identity = youtube_create_session()
+                    page = driver  # mobile functions accept driver as first arg
+                    self.log(f"Logged into YouTube (mobile) as {identity}")
+                else:
+                    pw, browser, page, identity = youtube_create_session()
+                    self.log(f"Logged into YouTube as {identity}")
             else:
                 pw, browser, page, identity = reddit_create_session()
                 self.log(f"Logged into Reddit as u/{identity}")
@@ -163,7 +187,10 @@ class BotEngine:
                     break
         finally:
             if self.platform == "youtube":
-                youtube_close_session(pw, browser)
+                if use_mobile:
+                    youtube_close_session(driver)
+                else:
+                    youtube_close_session(pw, browser)
             else:
                 reddit_close_session(pw, browser)
 
