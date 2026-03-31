@@ -78,7 +78,7 @@ class BotEngine:
             self._thread.join(timeout=10)
 
         self.platform = settings.get("platform", "reddit")
-        self.topic = settings["topic"]
+        self.topic = settings.get("topic", "").strip()
         self.subreddit = settings.get("subreddit", "all").strip() or "all"
         self.comment_flavor = settings["comment_flavor"]
         self.must_include = settings.get("must_include", "")
@@ -106,11 +106,12 @@ class BotEngine:
         self.is_running = True
 
         mode = "DRY RUN" if self.dry_run else "LIVE"
+        topic_label = f"'{self.topic}'" if self.topic else "all content (no filter)"
         if self.platform == "youtube":
             source_label = VIDEO_SOURCE_LABELS.get(self.video_source, self.video_source)
-            self.log(f"Bot started in {mode} mode | Platform: YouTube | Source: {source_label} | Topic: '{self.topic}'")
+            self.log(f"Bot started in {mode} mode | Platform: YouTube | Source: {source_label} | Topic: {topic_label}")
         else:
-            self.log(f"Bot started in {mode} mode | Topic: '{self.topic}' | Subreddit: r/{self.subreddit}")
+            self.log(f"Bot started in {mode} mode | Topic: {topic_label} | Subreddit: r/{self.subreddit}")
         return True
 
     def stop(self):
@@ -221,22 +222,23 @@ class BotEngine:
                 self._stop_event.set()
                 return
 
-            # Classify
-            try:
-                is_match = classify_post(item["title"], item["text"], self.topic, platform=self.platform)
-                consecutive_ai_errors = 0
-            except Exception as e:
-                consecutive_ai_errors += 1
-                self.log(f"Classification error: {e}", level="error")
-                if consecutive_ai_errors >= 3:
-                    self.log("All AI providers unavailable. Waiting 60s before retry...", level="error")
-                    if not self._wait(60):
-                        return
+            # Classify (skip if no topic — treat everything as a match)
+            if self.topic:
+                try:
+                    is_match = classify_post(item["title"], item["text"], self.topic, platform=self.platform)
                     consecutive_ai_errors = 0
-                continue
+                except Exception as e:
+                    consecutive_ai_errors += 1
+                    self.log(f"Classification error: {e}", level="error")
+                    if consecutive_ai_errors >= 3:
+                        self.log("All AI providers unavailable. Waiting 60s before retry...", level="error")
+                        if not self._wait(60):
+                            return
+                        consecutive_ai_errors = 0
+                    continue
 
-            if not is_match:
-                continue
+                if not is_match:
+                    continue
 
             matches += 1
             self.log(f"MATCH: {item['source_label']} - {item['title'][:70]}", level="match")

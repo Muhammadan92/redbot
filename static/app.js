@@ -81,9 +81,12 @@ startBtn.addEventListener("click", async () => {
     const topic = document.getElementById("topic").value.trim();
     const flavor = document.getElementById("flavor").value.trim();
 
-    if (!topic) {
-        alert("Please enter a topic to scan for.");
-        return;
+    if (!topic && currentPlatform === "youtube") {
+        const videoSource = document.querySelector('input[name="video-source"]:checked').value;
+        if (videoSource === "search") {
+            alert("Topic is required for YouTube search mode.");
+            return;
+        }
     }
     if (!flavor) {
         alert("Please enter a comment flavor/tone.");

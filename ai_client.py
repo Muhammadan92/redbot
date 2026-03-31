@@ -87,6 +87,7 @@ def classify_post(post_title, post_text, target_topic, platform="reddit"):
     system_prompt = (
         f"You are a content classifier. You will receive a {content_type} title and text. "
         "Determine if it is relevant to the given topic. "
+        "If multiple comma-separated topics are provided, respond 'yes' if the content is relevant to ANY of them. "
         "Respond with ONLY 'yes' or 'no'. Nothing else."
     )
     user_prompt = (

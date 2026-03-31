@@ -17,14 +17,14 @@ def index():
 @app.route("/api/start", methods=["POST"])
 def api_start():
     data = request.get_json()
-    if not data.get("topic"):
-        return jsonify({"error": "Topic is required"}), 400
     if not data.get("comment_flavor"):
         return jsonify({"error": "Comment flavor is required"}), 400
 
     platform = data.get("platform", "reddit")
     if platform == "youtube":
         source = data.get("video_source", "search")
+        if source == "search" and not data.get("topic"):
+            return jsonify({"error": "Topic is required for YouTube search mode"}), 400
         if source == "urls":
             urls = data.get("video_urls", "")
             if isinstance(urls, str):
